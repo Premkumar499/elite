@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCart, updateCartQty, removeFromCart } from '../services/db';
+import { sanitizeText } from '../utils/sanitize';
 
 export default function Cart() {
   const [cart, setCart]     = useState([]);
@@ -12,7 +13,7 @@ export default function Cart() {
   async function load() {
     setLoading(true);
     try { setCart(await getCart()); }
-    catch (e) { console.error(e); }
+    catch { }
     finally { setLoading(false); }
   }
 
@@ -53,10 +54,10 @@ export default function Cart() {
             <div style={s.items}>
               {cart.map(item => (
                 <div key={item.id} style={s.row}>
-                  <img src={item.products.image} alt={item.products.name} style={s.img}
+                  <img src={item.products.image} alt={sanitizeText(item.products.name)} style={s.img}
                     onError={e => e.target.src = '/elite studio pic/product.jpeg'} />
                   <div style={s.info}>
-                    <p style={s.name}>{item.products.name}</p>
+                    <p style={s.name}>{sanitizeText(item.products.name)}</p>
                     <p style={s.price}>₹{item.products.price.toLocaleString()}</p>
                     <div style={s.qtyRow}>
                       <button style={s.qBtn} onClick={() => handleQty(item.product_id, item.quantity - 1)}>−</button>

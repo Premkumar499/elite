@@ -8,12 +8,26 @@ export default function AdminLayout() {
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
-    if (!localStorage.getItem('adminToken')) navigate('/admin/login');
+    // Validate session token and expiry
+    try {
+      const raw = localStorage.getItem('adminToken');
+      if (!raw) { navigate('/admin/login'); return; }
+      const session = JSON.parse(raw);
+      if (!session.token || !session.exp || Date.now() > session.exp) {
+        localStorage.removeItem('adminToken');
+        navigate('/admin/login');
+        return;
+      }
+    } catch {
+      localStorage.removeItem('adminToken');
+      navigate('/admin/login');
+      return;
+    }
     loadPending();
 
-    // Real-time: listen for new orders
+    // Real-time: listen for ALL order changes including deletes
     const channel = supabaseAdmin
-      .channel('admin-orders')
+      .channel('admin-orders-layout')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         loadPending();
       })

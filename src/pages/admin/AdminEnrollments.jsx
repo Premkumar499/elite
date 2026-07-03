@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { sanitizeText } from '../../utils/sanitize';
 
 const STATUSES = ['new', 'contacted', 'enrolled', 'cancelled'];
 const STATUS_COLOR = {
@@ -21,7 +22,7 @@ export default function AdminEnrollments() {
     load();
     const channel = supabaseAdmin
       .channel('admin-enrollments')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'enrollments' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'enrollments' }, () => load())
       .subscribe();
     return () => supabaseAdmin.removeChannel(channel);
   }, []);
@@ -34,7 +35,6 @@ export default function AdminEnrollments() {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) {
-      console.error('Enrollments fetch error:', error.message);
       setFetchError(error.message);
     }
     setList(data || []);
@@ -117,16 +117,16 @@ export default function AdminEnrollments() {
                   <tr key={e.id} style={s.tr}>
                     <td style={s.td}><span style={s.idBadge}>#{e.id}</span></td>
                     <td style={s.td}>
-                      <p style={{ margin: 0, fontWeight: 600 }}>{e.first_name} {e.last_name}</p>
+                      <p style={{ margin: 0, fontWeight: 600 }}>{sanitizeText(e.first_name)} {sanitizeText(e.last_name)}</p>
                     </td>
                     <td style={s.td}>
-                      <p style={{ margin: 0 }}>{e.phone}</p>
-                      <p style={{ margin: 0, fontSize: 12, color: '#888' }}>{e.email}</p>
+                      <p style={{ margin: 0 }}>{sanitizeText(e.phone)}</p>
+                      <p style={{ margin: 0, fontSize: 12, color: '#888' }}>{sanitizeText(e.email)}</p>
                     </td>
                     <td style={s.td}>
-                      <span style={{ fontSize: 13, color: '#a07d56', fontWeight: 600 }}>{e.payment_plan || '—'}</span>
+                      <span style={{ fontSize: 13, color: '#a07d56', fontWeight: 600 }}>{sanitizeText(e.payment_plan) || '—'}</span>
                     </td>
-                    <td style={{ ...s.td, color: '#888', fontSize: 13 }}>{e.experience || '—'}</td>
+                    <td style={{ ...s.td, color: '#888', fontSize: 13 }}>{sanitizeText(e.experience) || '—'}</td>
                     <td style={s.td}>
                       <span style={{ ...s.badge, background: sc.bg, color: sc.color }}>
                         {e.status.charAt(0).toUpperCase() + e.status.slice(1)}
@@ -174,14 +174,14 @@ export default function AdminEnrollments() {
             </div>
 
             <div style={s.detailGrid}>
-              <DetailRow label="First Name"    value={selected.first_name} />
-              <DetailRow label="Last Name"     value={selected.last_name} />
-              <DetailRow label="Email"         value={selected.email} />
-              <DetailRow label="Phone"         value={selected.phone} />
-              <DetailRow label="Payment Plan"  value={selected.payment_plan} />
-              <DetailRow label="Experience"    value={selected.experience} />
-              <DetailRow label="Heard From"    value={selected.referral} />
-              <DetailRow label="Address"       value={selected.address} fullWidth />
+              <DetailRow label="First Name"    value={sanitizeText(selected.first_name)} />
+              <DetailRow label="Last Name"     value={sanitizeText(selected.last_name)} />
+              <DetailRow label="Email"         value={sanitizeText(selected.email)} />
+              <DetailRow label="Phone"         value={sanitizeText(selected.phone)} />
+              <DetailRow label="Payment Plan"  value={sanitizeText(selected.payment_plan)} />
+              <DetailRow label="Experience"    value={sanitizeText(selected.experience)} />
+              <DetailRow label="Heard From"    value={sanitizeText(selected.referral)} />
+              <DetailRow label="Address"       value={sanitizeText(selected.address)} fullWidth />
             </div>
 
             <div style={{ marginTop: 24 }}>
@@ -225,8 +225,8 @@ const s = {
   idBadge:    { background: '#f0ece3', color: '#a07d56', borderRadius: 6, padding: '2px 8px', fontSize: 12, fontWeight: 700 },
   badge:      { fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 },
   select:     { padding: '5px 8px', border: '1.5px solid #ddd', borderRadius: 6, fontSize: 13, cursor: 'pointer', background: '#fff' },
-  viewBtn:    { background: '#e8f4fd', color: '#3498db', border: 'none', borderRadius: 6, width: 32, height: 32, cursor: 'pointer', fontSize: 13 },
-  deleteBtn:  { background: '#fde8e8', color: '#e74c3c', border: 'none', borderRadius: 6, width: 32, height: 32, cursor: 'pointer', fontSize: 13 },
+  viewBtn:    { background: '#e8f4fd', color: '#3498db', border: 'none', borderRadius: 6, width: 32, height: 32, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  deleteBtn:  { background: '#fde8e8', color: '#e74c3c', border: 'none', borderRadius: 6, width: 32, height: 32, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   overlay:    { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
   modal:      { background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 540, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },
   modalHead:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },

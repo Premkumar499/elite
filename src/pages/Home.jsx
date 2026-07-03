@@ -1,11 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { carouselImages } from '../data/products';
+import { fetchProducts } from '../services/api';
 
 export default function Home() {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [categoryProducts, setCategoryProducts] = useState({ Blouses: null, Bangles: null, Materials: null });
   const navigate = useNavigate();
   const timerRef = useRef(null);
+
+  // Fetch one product per category for the Best Selling section
+  useEffect(() => {
+    ['Blouses', 'Bangles', 'Materials'].forEach(async (cat) => {
+      try {
+        const data = await fetchProducts({ category: cat });
+        setCategoryProducts(prev => ({ ...prev, [cat]: data[0] || null }));
+      } catch { /* silent */ }
+    });
+  }, []);
 
   const updateCarousel = (index) => {
     setCurrentIndex((index + carouselImages.length) % carouselImages.length);
@@ -49,19 +61,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Collections */}
-      <div className="collection-container">
-        <h2>Our Blouse Collections</h2>
-        {['Traditional Blouses', 'Designer Blouses', 'Casual Blouses', 'Party Wear Blouses'].map(name => (
-          <div className="collection-item" key={name}>
-            <Link to="/collections">
-              <img src="/elite studio pic/collection model.jpg" alt={name} />
-            </Link>
-            <h3>{name}</h3>
-          </div>
-        ))}
-      </div>
-
       {/* Training */}
       <div className="training-section">
         <h2>Live Training</h2>
@@ -86,14 +85,23 @@ export default function Home() {
             { label: 'Blouses', cat: 'Blouses' },
             { label: 'Aari Bangles', cat: 'Bangles' },
             { label: 'Materials', cat: 'Materials' },
-          ].map(({ label, cat }) => (
-            <div className="product-card" key={cat}>
-              <img src="/elite studio pic/product.jpeg" alt={label} />
-              <h3>{label}</h3>
-              <p>Modern look with premium quality.</p>
-              <Link to={`/collections?category=${cat}`} className="shop-now-link">Shop Now</Link>
-            </div>
-          ))}
+          ].map(({ label, cat }) => {
+            const p = categoryProducts[cat];
+            return (
+              <div className="product-card" key={cat}>
+                <img
+                  src={p?.image || '/elite studio pic/product.jpeg'}
+                  alt={p?.name || label}
+                  style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8 }}
+                  onError={e => e.target.src = '/elite studio pic/product.jpeg'}
+                />
+                <h3>{p?.name || label}</h3>
+                <p>{p?.description ? p.description.slice(0, 60) + (p.description.length > 60 ? '…' : '') : 'Modern look with premium quality.'}</p>
+                {p?.price && <p style={{ fontWeight: 700, color: '#a07d56', fontSize: 16 }}>₹{Number(p.price).toLocaleString()}</p>}
+                <Link to={`/collections?category=${cat}`} className="shop-now-link">Shop Now</Link>
+              </div>
+            );
+          })}
         </div>
       </section>
     </>

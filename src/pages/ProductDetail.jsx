@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchProduct } from '../services/api';
 import { addFavourite, isFavourite, addToCart } from '../services/db';
+import { sanitizeText } from '../utils/sanitize';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -78,13 +79,13 @@ export default function ProductDetail() {
         {/* Gallery */}
         <div className="product-gallery">
           <div className="main-image" onClick={() => setZoomOpen(true)}>
-            <img id="mainProductImage" src={mainImage} alt={product.name} />
+            <img id="mainProductImage" src={mainImage} alt={sanitizeText(product.name)} />
           </div>
           <div className="thumbnail-container">
             {images.map((src, i) => (
               <div key={i} className={`thumbnail${activeThumb === i ? ' active' : ''}`}
                 onClick={() => { setMainImage(src); setActiveThumb(i); }}>
-                <img src={src} alt={`${product.name} - ${i + 1}`} />
+                <img src={src} alt={`${sanitizeText(product.name)} - ${i + 1}`} />
               </div>
             ))}
           </div>
@@ -92,13 +93,13 @@ export default function ProductDetail() {
 
         {/* Info */}
         <div className="product-info">
-          <h1>{product.name}</h1>
-          <p className="price">₹ {product.price}</p>
+          <h1>{sanitizeText(product.name)}</h1>
+          <p className="price">₹ {sanitizeText(String(product.price))}</p>
           <div className="product-description">
-            <p>{product.description}</p>
-            <p><strong>Material:</strong> {product.material}</p>
-            <p><strong>Stock:</strong> {product.stock}</p>
-            <p><strong>Vendor:</strong> {product.vendor}</p>
+            <p>{sanitizeText(product.description)}</p>
+            <p><strong>Material:</strong> {sanitizeText(product.material)}</p>
+            <p><strong>Stock:</strong> {sanitizeText(product.stock)}</p>
+            <p><strong>Vendor:</strong> {sanitizeText(product.vendor)}</p>
           </div>
 
           {/* Qty + Add to Cart */}
@@ -133,7 +134,7 @@ export default function ProductDetail() {
           onClick={e => { if (e.target.classList.contains('zoom-modal') || e.target.classList.contains('close-zoom')) setZoomOpen(false); }}>
           <span className="close-zoom" onClick={() => setZoomOpen(false)}>&times;</span>
           <div className="zoom-image-container">
-            <img className="zoom-modal-content" src={mainImage} alt={product.name} />
+            <img className="zoom-modal-content" src={mainImage} alt={sanitizeText(product.name)} />
           </div>
         </div>
       )}

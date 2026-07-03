@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { adminGetAllUsers } from '../../services/db';
+import { adminGetAllUsers } from '../../services/adminDb';
+import { sanitizeText } from '../../utils/sanitize';
 export default function AdminUsers() {
   const [users, setUsers]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -8,7 +9,7 @@ export default function AdminUsers() {
   useEffect(() => {
     adminGetAllUsers()
       .then(setUsers)
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -47,12 +48,12 @@ export default function AdminUsers() {
                 <tr key={u.id} style={s.tr}>
                   <td style={s.td}>
                     {u.avatar_url
-                      ? <img src={u.avatar_url} alt={u.full_name} style={s.avatar} />
+                      ? <img src={u.avatar_url} alt={sanitizeText(u.full_name)} style={s.avatar} />
                       : <div style={s.avatarFallback}>{(u.full_name || u.email || '?')[0].toUpperCase()}</div>
                     }
                   </td>
-                  <td style={{ ...s.td, fontWeight: 600 }}>{u.full_name || '—'}</td>
-                  <td style={s.td}>{u.email}</td>
+                  <td style={{ ...s.td, fontWeight: 600 }}>{sanitizeText(u.full_name) || '—'}</td>
+                  <td style={s.td}>{sanitizeText(u.email)}</td>
                   <td style={s.td}>
                     <span style={s.providerBadge}>google</span>
                   </td>

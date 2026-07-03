@@ -39,3 +39,64 @@
   font-size: 18px;
   grid-column: 1 / -1;
 }
+
+/* Image Zoom Enhancements */
+.product-card {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.product-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: opacity 0.2s ease;
+}
+
+.product-card:hover .product-image {
+  opacity: 0.95;
+}
+
+/* Ensure zoom panel is visible */
+.product-card {
+  overflow: visible !important;
+}
+
+/* Smooth zoom transitions */
+@media (hover: hover) {
+  .product-card:hover {
+    z-index: 10;
+  }
+}
+
+/* Mobile: disable zoom effects */
+@media (max-width: 768px) {
+  .product-card:hover {
+    transform: none;
+  }
+}
+
+/* Favourites card hover effects */
+.fav-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.11) !important;
+}
+
+.fav-card-hover:hover .fav-img {
+  transform: scale(1.06);
+}
+
+.fav-card-hover:hover .fav-overlay {
+  opacity: 1 !important;
+}
+
+/* Shimmer animation for skeleton */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

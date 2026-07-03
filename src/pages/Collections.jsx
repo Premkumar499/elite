@@ -1,15 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchProducts } from '../services/api';
+import { sanitizeText } from '../utils/sanitize';
+import ImageZoom from '../components/ImageZoom';
 
 export default function Collections() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // Input values (what user types — don't trigger fetch)
+  const [minInput, setMinInput] = useState(0);
+  const [maxInput, setMaxInput] = useState(20000);
+
+  // Applied price values (only update when Apply is clicked)
   const [minPrice, setMinPrice] = useState(0);
   const [maxPrice, setMaxPrice] = useState(20000);
-  const [categories, setCategories] = useState({ Blouses: true, Bangles: true, Materials: true });
+
+  const [categories, setCategories] = useState(() => {
+    // Initialize with URL param on first render
+    const cat = new URLSearchParams(window.location.search).get('category');
+    return {
+      Blouses:   cat ? cat === 'Blouses'   : true,
+      Bangles:   cat ? cat === 'Bangles'   : true,
+      Materials: cat ? cat === 'Materials' : true,
+    };
+  });
+
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [products, setProducts] = useState([]);
@@ -17,37 +35,38 @@ export default function Collections() {
   const [error, setError] = useState(null);
   const searchTimeout = useRef(null);
 
-  // Apply category from URL param on mount
+  // Fetch whenever applied filters change — pass values directly to avoid stale closure
   useEffect(() => {
-    const cat = searchParams.get('category');
-    if (cat) {
-      setCategories({ Blouses: false, Bangles: false, Materials: false, [cat]: true });
-    }
-  }, []);
-
-  // Fetch products whenever filters change
-  useEffect(() => {
-    loadProducts();
+    loadProducts({ cats: categories, min: minPrice, max: maxPrice, search: searchTerm });
   }, [categories, minPrice, maxPrice]);
 
-  async function loadProducts(search = searchTerm) {
+  async function loadProducts({
+    cats   = categories,
+    min    = minPrice,
+    max    = maxPrice,
+    search = searchTerm,
+  } = {}) {
     setLoading(true);
     setError(null);
     try {
-      const selectedCats = Object.keys(categories).filter(k => categories[k]);
-      // If all or none selected, no category filter; if only one, filter by it
+      const selectedCats = Object.keys(cats).filter(k => cats[k]);
       const categoryFilter = selectedCats.length === 1 ? selectedCats[0] : undefined;
 
       let data = await fetchProducts({
         category: categoryFilter,
-        minPrice,
-        maxPrice,
+        minPrice: min,
+        maxPrice: max,
         search: search.trim() || undefined,
       });
 
-      // Client-side multi-category filter when multiple are selected
-      if (selectedCats.length > 1 && selectedCats.length < 3) {
+      // Client-side filter when 2 categories selected
+      if (selectedCats.length === 2) {
         data = data.filter(p => selectedCats.includes(p.category));
+      }
+
+      // If none selected, show all
+      if (selectedCats.length === 0) {
+        data = await fetchProducts({ minPrice: min, maxPrice: max, search: search.trim() || undefined });
       }
 
       setProducts(data);
@@ -85,13 +104,16 @@ export default function Collections() {
           <h4>Price</h4>
           <div className="price-range">
             <div className="price-inputs">
-              <input type="number" placeholder="From ₹" value={minPrice} min="0"
-                onChange={e => setMinPrice(+e.target.value)} />
+              <input type="number" placeholder="From ₹" value={minInput} min="0"
+                onChange={e => setMinInput(+e.target.value)} />
               <span>-</span>
-              <input type="number" placeholder="To ₹" value={maxPrice} min="0"
-                onChange={e => setMaxPrice(+e.target.value)} />
+              <input type="number" placeholder="To ₹" value={maxInput} min="0"
+                onChange={e => setMaxInput(+e.target.value)} />
             </div>
-            <button id="applyPrice" onClick={() => loadProducts()}>Apply</button>
+            <button id="applyPrice" onClick={() => {
+              setMinPrice(minInput);
+              setMaxPrice(maxInput);
+            }}>Apply</button>
           </div>
         </div>
         <div className="filter-section">
@@ -131,7 +153,7 @@ export default function Collections() {
             <div className="search-suggestions" style={{ display: 'block' }}>
               {suggestions.map(p => (
                 <a key={p.id} href="#" onClick={e => { e.preventDefault(); navigate(`/product/${p.id}`); setShowSuggestions(false); }}>
-                  {p.name} - ₹{p.price}
+                  {sanitizeText(p.name)} - ₹{sanitizeText(String(p.price))}
                 </a>
               ))}
             </div>
@@ -164,13 +186,17 @@ export default function Collections() {
             <div className="no-products">No products match your criteria</div>
           )}
           {!loading && !error && products.map(product => (
-            <div key={product.id} className="product-card"
-              onClick={() => navigate(`/product/${product.id}`)} style={{ cursor: 'pointer' }}>
-              <img src={product.image || product.images?.[0] || '/elite studio pic/product.jpeg'} alt={product.name} className="product-image"
-                onError={e => e.target.src = '/elite studio pic/product.jpeg'} />
-              <div className="product-info">
-                <h3 className="product-name">{product.name}</h3>
-                <p className="product-price">₹ {product.price}</p>
+            <div key={product.id} className="product-card" style={{ cursor: 'pointer' }}>
+              <div onClick={() => navigate(`/product/${product.id}`)} style={{ overflow: 'hidden', borderRadius: '8px 8px 0 0' }}>
+                <ImageZoom 
+                  src={product.image || product.images?.[0] || '/elite studio pic/product.jpeg'} 
+                  alt={sanitizeText(product.name)} 
+                  className="product-image"
+                />
+              </div>
+              <div className="product-info" onClick={() => navigate(`/product/${product.id}`)}>
+                <h3 className="product-name">{sanitizeText(product.name)}</h3>
+                <p className="product-price">₹ {sanitizeText(String(product.price))}</p>
               </div>
             </div>
           ))}

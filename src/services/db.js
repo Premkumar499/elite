@@ -11,9 +11,12 @@ export async function getCurrentUser() {
 
 // ── Cart ─────────────────────────────────────────────────────────────────────
 export async function getCart() {
+  const user = await getCurrentUser();
+  if (!user) return [];
   const { data, error } = await supabase
     .from('cart')
     .select('*, products(id, name, price, image, stock)')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: true });
   if (error) throw error;
   return data;
@@ -135,39 +138,16 @@ export async function placeOrder({ phone, address, notes, cartItems }) {
 }
 
 export async function getUserOrders() {
+  const user = await getCurrentUser();
+  if (!user) return [];
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(id, name, price, quantity, image, product_id)')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
-import { supabaseAdmin } from '../lib/supabaseAdmin';
-
-export async function adminGetAllOrders() {
-  const { data, error } = await supabaseAdmin
-    .from('orders')
-    .select('*, order_items(id, name, price, quantity, image)')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
-}
-
-export async function adminUpdateOrderStatus(orderId, status) {
-  const { error } = await supabaseAdmin
-    .from('orders')
-    .update({ status })
-    .eq('id', orderId);
-  if (error) throw error;
-}
-
-export async function adminGetAllUsers() {
-  const { data, error } = await supabaseAdmin
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
-}
+// Admin functions are in adminDb.js — do NOT import supabaseAdmin here

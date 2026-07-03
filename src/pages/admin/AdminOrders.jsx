@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { adminGetAllOrders, adminUpdateOrderStatus } from '../../services/db';
+import { adminGetAllOrders, adminUpdateOrderStatus, adminDeleteOrder } from '../../services/adminDb';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { sanitizeText } from '../../utils/sanitize';
 
 const STATUSES = ['pending', 'confirmed', 'delivered', 'cancelled'];
 const STATUS_COLOR = {
@@ -15,16 +16,27 @@ export default function AdminOrders() {
   const [loading, setLoading]     = useState(true);
   const [expanded, setExpanded]   = useState(null);
   const [filter, setFilter]       = useState('all');
-  const [product, setProduct]     = useState(null);   // selected product for modal
+  const [product, setProduct]     = useState(null);
   const [prodLoading, setProdLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [deletingId, setDeletingId]   = useState(null);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    load();
+
+    // Realtime: sync on any DB change (insert, update, delete)
+    const channel = supabaseAdmin
+      .channel('admin-orders-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => load())
+      .subscribe();
+
+    return () => supabaseAdmin.removeChannel(channel);
+  }, []);
 
   async function load() {
     setLoading(true);
     try { setOrders(await adminGetAllOrders()); }
-    catch (e) { console.error(e); }
+    catch { }
     finally { setLoading(false); }
   }
 
@@ -36,12 +48,16 @@ export default function AdminOrders() {
   async function deleteOrder(orderId) {
     if (!window.confirm('Delete this order? This cannot be undone.')) return;
     setDeleteError('');
-    const { error: itemsErr } = await supabaseAdmin.from('order_items').delete().eq('order_id', orderId);
-    if (itemsErr) { setDeleteError('Delete failed: ' + itemsErr.message); return; }
-    const { error: orderErr } = await supabaseAdmin.from('orders').delete().eq('id', orderId);
-    if (orderErr) { setDeleteError('Delete failed: ' + orderErr.message); return; }
-    setOrders(prev => prev.filter(o => o.id !== orderId));
-    if (expanded === orderId) setExpanded(null);
+    setDeletingId(orderId);
+    try {
+      await adminDeleteOrder(orderId);
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      if (expanded === orderId) setExpanded(null);
+    } catch (e) {
+      setDeleteError('Delete failed: ' + e.message);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function openProduct(productId) {
@@ -94,8 +110,8 @@ export default function AdminOrders() {
                 <div style={s.headLeft}>
                   <span style={s.orderId}>#{order.id}</span>
                   <div>
-                    <p style={s.customerName}>{order.user_name || 'Unknown'}</p>
-                    <p style={s.customerEmail}>{order.user_email}</p>
+                    <p style={s.customerName}>{sanitizeText(order.user_name || 'Unknown')}</p>
+                    <p style={s.customerEmail}>{sanitizeText(order.user_email)}</p>
                   </div>
                 </div>
                 <div style={s.headRight}>
@@ -111,9 +127,9 @@ export default function AdminOrders() {
               {isOpen && (
                 <div style={s.body}>
                   <div style={s.bodyGrid}>
-                    <div><label style={s.lbl}>Phone</label><p style={s.val}>{order.phone || '—'}</p></div>
-                    <div><label style={s.lbl}>Address</label><p style={s.val}>{order.address || '—'}</p></div>
-                    {order.notes && <div style={{ gridColumn: '1/-1' }}><label style={s.lbl}>Notes</label><p style={s.val}>{order.notes}</p></div>}
+                    <div><label style={s.lbl}>Phone</label><p style={s.val}>{sanitizeText(order.phone || '—')}</p></div>
+                    <div><label style={s.lbl}>Address</label><p style={s.val}>{sanitizeText(order.address || '—')}</p></div>
+                    {order.notes && <div style={{ gridColumn: '1/-1' }}><label style={s.lbl}>Notes</label><p style={s.val}>{sanitizeText(order.notes)}</p></div>}
                   </div>
 
                   <div style={s.itemsList}>
@@ -123,7 +139,7 @@ export default function AdminOrders() {
                         title="Click to view product details">
                         <img src={item.image} alt={item.name} style={s.itemImg}
                           onError={e => e.target.src = '/elite studio pic/product.jpeg'} />
-                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{item.name}</span>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{sanitizeText(item.name)}</span>
                         <span style={{ color: '#888', fontSize: 13 }}>x{item.quantity}</span>
                         <span style={{ fontWeight: 700, fontSize: 14 }}>₹{(item.price * item.quantity).toLocaleString()}</span>
                         <i className="fas fa-external-link-alt" style={{ color: '#a07d56', fontSize: 11, marginLeft: 6 }}></i>
@@ -143,8 +159,11 @@ export default function AdminOrders() {
                         </button>
                       ))}
                     </div>
-                    <button style={s.deleteBtn} onClick={() => deleteOrder(order.id)} title="Delete order">
-                      <i className="fas fa-trash" style={{ marginRight: 5 }}></i>Delete
+                    <button style={s.deleteBtn} onClick={() => deleteOrder(order.id)} title="Delete order" disabled={deletingId === order.id}>
+                      {deletingId === order.id
+                        ? <i className="fas fa-spinner fa-spin"></i>
+                        : <><i className="fas fa-trash" style={{ marginRight: 5 }}></i>Delete</>
+                      }
                     </button>
                   </div>
                 </div>
@@ -237,6 +256,7 @@ const s = {
   statusRow:   { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   statusBtns:  { display: 'flex', gap: 6, flexWrap: 'wrap' },
   stBtn:       { padding: '5px 12px', border: '1.5px solid #ddd', borderRadius: 6, fontSize: 12, cursor: 'pointer', background: '#f8f8f8', color: '#555', fontWeight: 600, textTransform: 'capitalize' },
+  deleteBtn:   { padding: '6px 14px', background: '#fde8e8', color: '#e74c3c', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   // Product modal
   overlay:     { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
   modal:       { background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getUserOrders, getFavourites } from '../services/db';
+import { sanitizeText } from '../utils/sanitize';
 
 export default function Profile() {
   const [user, setUser]         = useState(null);
@@ -66,7 +67,7 @@ export default function Profile() {
             <div style={s.avatarWrap}>
               {profile?.avatar_url
                 ? <img src={profile.avatar_url} alt="avatar" style={s.avatar} />
-                : <div style={s.avatarFallback}>{(profile?.full_name || user.email)[0].toUpperCase()}</div>
+                : <div style={s.avatarFallback}>{sanitizeText((profile?.full_name || user.email || '?')[0]).toUpperCase()}</div>
               }
             </div>
 
@@ -80,14 +81,14 @@ export default function Profile() {
               </div>
             ) : (
               <div style={{ textAlign: 'center', marginBottom: 12 }}>
-                <h2 style={s.nameText}>{profile?.full_name || 'No name set'}</h2>
+                <h2 style={s.nameText}>{sanitizeText(profile?.full_name) || 'No name set'}</h2>
                 <button style={s.editBtn} onClick={() => setEditing(true)}>
                   <i className="fas fa-edit" style={{ marginRight: 5 }}></i>Edit Name
                 </button>
               </div>
             )}
 
-            <p style={s.email}>{profile?.email}</p>
+            <p style={s.email}>{sanitizeText(profile?.email)}</p>
             <p style={s.provider}>via {user.app_metadata?.provider || 'email'}</p>
             <p style={s.joined}>Joined {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long' }) : '—'}</p>
 

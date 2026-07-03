@@ -13,19 +13,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     Promise.all([loadStats(), loadOrders(), loadEnrollments()])
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
 
-    // Real-time order updates
+    // Real-time: listen for ALL changes (INSERT, UPDATE, DELETE)
     const orderChannel = supabaseAdmin
       .channel('dashboard-orders')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => loadOrders())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        loadOrders();
+        loadStats();
+      })
       .subscribe();
 
-    // Real-time enrollment updates
     const enrollChannel = supabaseAdmin
       .channel('dashboard-enrollments')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'enrollments' }, () => loadEnrollments())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'enrollments' }, () => loadEnrollments())
       .subscribe();
 
     return () => {

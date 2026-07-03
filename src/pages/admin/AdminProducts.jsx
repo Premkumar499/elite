@@ -1,14 +1,32 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchProducts, createProduct, updateProduct, deleteProduct } from '../../services/api';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { sanitizeText } from '../../utils/sanitize';
+import { optimizeImage, validateImage, formatFileSize, IMAGE_SPECS } from '../../utils/imageOptimizer';
 
 const EMPTY = { name: '', price: '', category: 'Blouses', description: '', material: '', stock: 'In Stock', vendor: 'Elite Studio', image: '', images: [] };
 const BUCKET = 'products';
 
 async function uploadFile(file) {
+  // Validate image
+  const validation = validateImage(file);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
+  // Optimize image before upload
+  const optimizedBlob = await optimizeImage(file, IMAGE_SPECS.PRODUCT_MAIN);
+  
   const ext  = file.name.split('.').pop();
   const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(path, file, { upsert: true });
+  
+  const { error } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .upload(path, optimizedBlob, { 
+      upsert: true,
+      contentType: 'image/jpeg',
+    });
+    
   if (error) throw new Error('Upload failed: ' + error.message);
   return supabaseAdmin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
@@ -59,15 +77,35 @@ export default function AdminProducts() {
   function handleFileChange(e) {
     const file = e.target.files[0];
     if (!file) return;
+    
+    // Validate
+    const validation = validateImage(file);
+    if (!validation.valid) {
+      setError(validation.error);
+      return;
+    }
+    
     setImgFile(file);
     setImgPreview(URL.createObjectURL(file));
+    setError(''); // Clear any previous errors
   }
 
   function handleExtraFiles(e) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
+    
+    // Validate all files
+    for (const file of files) {
+      const validation = validateImage(file);
+      if (!validation.valid) {
+        setError(validation.error);
+        return;
+      }
+    }
+    
     setExtraFiles(prev => [...prev, ...files]);
     setExtraPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
+    setError(''); // Clear any previous errors
   }
 
   function removeExtraPreview(index) {
@@ -165,12 +203,12 @@ export default function AdminProducts() {
                     <img src={p.image} alt={p.name} style={s.thumb}
                       onError={e => e.target.src = '/elite studio pic/product.jpeg'} />
                   </td>
-                  <td style={{ ...s.td, fontWeight: 600, maxWidth: 160 }}>{p.name}</td>
+                  <td style={{ ...s.td, fontWeight: 600, maxWidth: 160 }}>{sanitizeText(p.name)}</td>
                   <td style={s.td}>
-                    <span style={{ ...s.badge, background: catColors[p.category] || '#888' }}>{p.category}</span>
+                    <span style={{ ...s.badge, background: catColors[p.category] || '#888' }}>{sanitizeText(p.category)}</span>
                   </td>
                   <td style={s.td}>₹{Number(p.price).toLocaleString()}</td>
-                  <td style={{ ...s.td, color: '#888' }}>{p.material}</td>
+                  <td style={{ ...s.td, color: '#888' }}>{sanitizeText(p.material)}</td>
                   <td style={s.td}>
                     <span style={{ color: p.stock === 'In Stock' ? '#27ae60' : '#e74c3c', fontWeight: 600 }}>{p.stock}</span>
                   </td>
@@ -252,6 +290,11 @@ export default function AdminProducts() {
                   )}
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+                <p style={{ fontSize: 11, color: '#888', marginTop: 6, marginBottom: 0 }}>
+                  <i className="fas fa-info-circle" style={{ marginRight: 4, color: '#a07d56' }}></i>
+                  <strong>Recommended:</strong> 800x800px • Max 10MB • Images auto-optimized to 500KB
+                  {imgFile && <span style={{ color: '#27ae60', marginLeft: 8 }}>({formatFileSize(imgFile.size)})</span>}
+                </p>
               </Field>
 
               {/* Extra Images */}
@@ -327,9 +370,9 @@ export default function AdminProducts() {
               {/* Info Panel */}
               <div style={s.viewInfo}>
                 <span style={{ ...s.badge, background: catColors[viewProduct.category] || '#888', marginBottom: 10, display: 'inline-block' }}>
-                  {viewProduct.category}
+                  {sanitizeText(viewProduct.category)}
                 </span>
-                <h3 style={s.viewName}>{viewProduct.name}</h3>
+                <h3 style={s.viewName}>{sanitizeText(viewProduct.name)}</h3>
                 <p style={s.viewPrice}>₹{Number(viewProduct.price).toLocaleString()}</p>
 
                 <div style={s.viewMeta}>
@@ -339,24 +382,24 @@ export default function AdminProducts() {
                   </div>
                   <div style={s.viewMetaRow}>
                     <span style={s.viewMetaLabel}>Material</span>
-                    <span>{viewProduct.material || '—'}</span>
+                    <span>{sanitizeText(viewProduct.material) || '—'}</span>
                   </div>
                   <div style={s.viewMetaRow}>
                     <span style={s.viewMetaLabel}>Stock</span>
                     <span style={{ color: viewProduct.stock === 'In Stock' ? '#27ae60' : '#e74c3c', fontWeight: 600 }}>
-                      {viewProduct.stock}
+                      {sanitizeText(viewProduct.stock)}
                     </span>
                   </div>
                   <div style={s.viewMetaRow}>
                     <span style={s.viewMetaLabel}>Vendor</span>
-                    <span>{viewProduct.vendor || '—'}</span>
+                    <span>{sanitizeText(viewProduct.vendor) || '—'}</span>
                   </div>
                 </div>
 
                 {viewProduct.description && (
                   <div style={s.viewDesc}>
                     <p style={s.viewMetaLabel}>Description</p>
-                    <p style={{ margin: 0, color: '#555', fontSize: 14, lineHeight: 1.6 }}>{viewProduct.description}</p>
+                    <p style={{ margin: 0, color: '#555', fontSize: 14, lineHeight: 1.6 }}>{sanitizeText(viewProduct.description)}</p>
                   </div>
                 )}
 
@@ -383,7 +426,7 @@ export default function AdminProducts() {
               <button style={s.closeBtn} onClick={() => setConfirmDel(null)}>&times;</button>
             </div>
             <p style={{ color: '#555', marginBottom: 24 }}>
-              Are you sure you want to delete <strong>{confirmDel.name}</strong>? This cannot be undone.
+              Are you sure you want to delete <strong>{sanitizeText(confirmDel.name)}</strong>? This cannot be undone.
             </p>
             <div style={s.modalFooter}>
               <button style={s.cancelBtn} onClick={() => setConfirmDel(null)}>Cancel</button>
@@ -425,9 +468,9 @@ const s = {
   thumb:            { width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' },
   badge:            { color: '#fff', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 },
   actions:          { display: 'flex', gap: 8 },
-  viewBtn:          { background: '#e8f5e9', color: '#27ae60', border: 'none', borderRadius: 6, width: 34, height: 34, cursor: 'pointer', fontSize: 14 },
-  editBtn:          { background: '#e8f4fd', color: '#3498db', border: 'none', borderRadius: 6, width: 34, height: 34, cursor: 'pointer', fontSize: 14 },
-  delBtn:           { background: '#fde8e8', color: '#e74c3c', border: 'none', borderRadius: 6, width: 34, height: 34, cursor: 'pointer', fontSize: 14 },
+  viewBtn:          { background: '#e8f5e9', color: '#27ae60', border: 'none', borderRadius: 6, width: 34, height: 34, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  editBtn:          { background: '#e8f4fd', color: '#3498db', border: 'none', borderRadius: 6, width: 34, height: 34, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  delBtn:           { background: '#fde8e8', color: '#e74c3c', border: 'none', borderRadius: 6, width: 34, height: 34, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   overlay:          { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
   modal:            { background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },
   modalHeader:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },

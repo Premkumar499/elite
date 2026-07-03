@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { getUserOrders } from '../services/db';
+import { sanitizeText } from '../utils/sanitize';
 
 const STATUS_COLOR = {
   pending:   { bg: '#fff3cd', color: '#856404' },
@@ -19,7 +20,7 @@ export default function Orders() {
   useEffect(() => {
     getUserOrders()
       .then(data => { setOrders(data); if (newOrderId) setExpanded(newOrderId); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -80,16 +81,16 @@ export default function Orders() {
                 {isOpen && (
                   <div style={s.cardBody}>
                     <div style={s.detailGrid}>
-                      <div><span style={s.detailLabel}>Phone</span><p style={s.detailVal}>{order.phone}</p></div>
-                      <div><span style={s.detailLabel}>Address</span><p style={s.detailVal}>{order.address}</p></div>
-                      {order.notes && <div style={{ gridColumn: '1/-1' }}><span style={s.detailLabel}>Notes</span><p style={s.detailVal}>{order.notes}</p></div>}
+                      <div><span style={s.detailLabel}>Phone</span><p style={s.detailVal}>{sanitizeText(order.phone)}</p></div>
+                      <div><span style={s.detailLabel}>Address</span><p style={s.detailVal}>{sanitizeText(order.address)}</p></div>
+                      {order.notes && <div style={{ gridColumn: '1/-1' }}><span style={s.detailLabel}>Notes</span><p style={s.detailVal}>{sanitizeText(order.notes)}</p></div>}
                     </div>
                     <h4 style={s.itemsTitle}>Items</h4>
                     {order.order_items.map(item => (
                       <div key={item.id} style={s.itemRow}>
-                        <img src={item.image} alt={item.name} style={s.itemImg}
+                        <img src={item.image} alt={sanitizeText(item.name)} style={s.itemImg}
                           onError={e => e.target.src = '/elite studio pic/product.jpeg'} />
-                        <span style={{ flex: 1, fontSize: 14 }}>{item.name}</span>
+                        <span style={{ flex: 1, fontSize: 14 }}>{sanitizeText(item.name)}</span>
                         <span style={s.itemQty}>x{item.quantity}</span>
                         <span style={s.itemPrice}>₹{(item.price * item.quantity).toLocaleString()}</span>
                       </div>

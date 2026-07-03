@@ -10,24 +10,49 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [error, setError]     = useState('');
   const [done, setDone]       = useState(null); // order id after success
+  const [form, setForm]       = useState({ phone: '', address: '', notes: '' });
   const navigate = useNavigate();
 
   useEffect(() => {
     getCart()
       .then(data => { setCart(data); if (data.length === 0) navigate('/cart'); })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
   const total = cart.reduce((s, i) => s + i.products.price * i.quantity, 0);
 
+  function handleInputChange(e) {
+    const { name, value } = e.target;
+    // Basic XSS protection - strip HTML tags
+    const clean = value.replace(/<[^>]*>/g, '');
+    setForm(prev => ({ ...prev, [name]: clean }));
+  }
+
   async function handleOrder() {
-    setPlacing(true); setError('');
+    // Validate required fields
+    if (!form.phone.trim() || !form.address.trim()) {
+      setError('Phone and address are required.');
+      return;
+    }
+    // Phone validation
+    if (!/^[\d\s\+\-\(\)]{7,15}$/.test(form.phone.trim())) {
+      setError('Please enter a valid phone number.');
+      return;
+    }
+
+    setPlacing(true); 
+    setError('');
     try {
-      const order = await placeOrder({ phone: '', address: '', notes: '', cartItems: cart });
+      const order = await placeOrder({ 
+        phone: form.phone.trim(), 
+        address: form.address.trim(), 
+        notes: form.notes.trim(), 
+        cartItems: cart 
+      });
       setDone(order.id);
     } catch (e) {
-      setError(e.message);
+      setError('Order failed. Please try again.');
     } finally {
       setPlacing(false);
     }
@@ -90,6 +115,46 @@ export default function Checkout() {
           <span style={s.totalAmt}>₹{total.toLocaleString()}</span>
         </div>
 
+        {/* Delivery Form */}
+        <div style={s.formSection}>
+          <h3 style={s.formTitle}>Delivery Information</h3>
+          <div style={s.formGroup}>
+            <label style={s.formLabel}>Phone Number *</label>
+            <input
+              type="tel"
+              name="phone"
+              value={form.phone}
+              onChange={handleInputChange}
+              placeholder="Your contact number"
+              style={s.formInput}
+              required
+            />
+          </div>
+          <div style={s.formGroup}>
+            <label style={s.formLabel}>Delivery Address *</label>
+            <textarea
+              name="address"
+              value={form.address}
+              onChange={handleInputChange}
+              placeholder="Complete delivery address"
+              style={s.formTextarea}
+              rows={3}
+              required
+            />
+          </div>
+          <div style={s.formGroup}>
+            <label style={s.formLabel}>Special Instructions (Optional)</label>
+            <input
+              type="text"
+              name="notes"
+              value={form.notes}
+              onChange={handleInputChange}
+              placeholder="Any special delivery instructions"
+              style={s.formInput}
+            />
+          </div>
+        </div>
+
         {/* Note */}
         <div style={s.note}>
           <i className="fas fa-info-circle" style={{ color: '#a07d56', marginRight: 8 }}></i>
@@ -140,4 +205,11 @@ const s = {
   successActions:{ display: 'flex', gap: 12 },
   ordersBtn:     { flex: 1, padding: '12px', background: '#333d47', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
   shopBtn:       { flex: 1, padding: '12px', background: '#f7f2e7', color: '#a07d56', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  // Form styles
+  formSection:   { background: '#f7f2e7', borderRadius: 12, padding: 20, marginBottom: 20 },
+  formTitle:     { fontSize: 16, fontWeight: 700, color: '#333d47', marginBottom: 16 },
+  formGroup:     { marginBottom: 16 },
+  formLabel:     { display: 'block', fontSize: 14, fontWeight: 600, color: '#333d47', marginBottom: 6 },
+  formInput:     { width: '100%', padding: '10px 14px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', outline: 'none' },
+  formTextarea:  { width: '100%', padding: '10px 14px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', outline: 'none', resize: 'vertical' },
 };
